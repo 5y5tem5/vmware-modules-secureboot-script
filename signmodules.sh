@@ -26,21 +26,21 @@ if [ $VMMonSigned -eq 0 ] && [ $VMNetSigned -eq 0 ]; then
     
 fi
 
-#install modules 
+#install module if missing
+if [[ -z "$VMMonSigner" && -z "$VMNetSigner" ]]; then
+    vmware-modconfig --console --install-all
+fi
 
-vmware-modconfig --console --install-all
 
 #check if dir exists and create it if not 
 if ([ ! -d $secure_crypto_dir ]); then
     mkdir $secure_crypto_dir
+    cd $secure_crypto_dir
+    #generate certificate (this is lazy and should be fixed to something trustworthy ) 
+    openssl req -new -x509 -newkey rsa:2048 -keyout MOK.priv -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=My_MOK"
+    mokutil --import MOK.der
 fi
-cd $secure_crypto_dir
-
-#generate certificate (this is lazy and should be fixed to something trustworthy ) 
-openssl req -new -x509 -newkey rsa:2048 -keyout MOK.priv -outform DER -out MOK.der -nodes -days 36500 -subj "/CN=VMware/"
-
-#Import certificate 
-mokutil --import MOK.der
 #sign the modules
+cd $secure_crypto_dir
 /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 ./MOK.priv ./MOK.der $(modinfo -n vmmon)
 /usr/src/linux-headers-$(uname -r)/scripts/sign-file sha256 ./MOK.priv ./MOK.der $(modinfo -n vmnet)
